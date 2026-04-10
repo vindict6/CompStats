@@ -247,7 +247,7 @@ namespace CompStats
             // We now strictly wait for OnRoundPrestart to detect a 0-0 score before creating a Match ID.
             // This prevents duplicate match creation on map load and ensures restarts on the same map are handled correctly.
 
-            AddCommand("css_players", "Print tracked player stats (humans and bots)", (caller, cmdInfo) =>
+            AddCommand("css_players", "Print tracked player stats (humans only)", (caller, cmdInfo) =>
             {
                 if (caller != null)
                 {
@@ -1558,12 +1558,11 @@ collection_id=";
                 .ToList();
 
             var humans = allPlayers.Where(p => !p.IsBot && !p.IsHLTV).ToList();
-            var bots = allPlayers.Where(p => p.IsBot && !p.IsHLTV).ToList();
 
             string zeusLeaderName = "None";
             int maxZeusKills = 0;
 
-            foreach (var player in allPlayers)
+            foreach (var player in humans)
             {
                 var data = GetOrAddPlayer(player);
                 if (data.CurrentZeusKills > maxZeusKills)
@@ -1579,19 +1578,11 @@ collection_id=";
             string recordingStatus = _usesMatchLibrarian ? "ON" : "OFF";
 
             cmd.ReplyToCommand($"--- Status: Map: {mapName} | ID: {_matchData.MatchID} | CollectionID: {_loadedCollectionId} | WorkshopID: {workshopId} | Warmup: {(isWarmup ? "Yes" : "No")} | DB: {recordingStatus} ---");
-            cmd.ReplyToCommand($"--- Humans: {humans.Count}, Bots: {bots.Count} | T Wins: {_tWins}, CT Wins: {_ctWins} ---");
+            cmd.ReplyToCommand($"--- Humans: {humans.Count} | T Wins: {_tWins}, CT Wins: {_ctWins} ---");
 
             if (humans.Any())
             {
-                cmd.ReplyToCommand("--- Humans ---");
                 foreach (var p in humans) PrintSinglePlayerStat(p, cmd);
-            }
-
-            if (bots.Any())
-            {
-                if (humans.Any()) cmd.ReplyToCommand(" ");
-                cmd.ReplyToCommand("--- Bots ---");
-                foreach (var p in bots) PrintSinglePlayerStat(p, cmd);
             }
 
             if (maxZeusKills > 0)
