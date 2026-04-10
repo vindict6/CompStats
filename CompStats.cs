@@ -973,11 +973,12 @@ collection_id=";
 
             if (activeHumans == 0 && specHumans > 0)
             {
-                if (_spectatorKickTimer == null)
-                {
-                    Server.PrintToChatAll($" {ChatColors.Red}[CompStats] WARNING: NO ACTIVE PLAYERS. SPECTATORS WILL BE KICKED IN 30 SECONDS.");
-                    _spectatorKickTimer = AddTimer(30.0f, KickSpectatorsAndRestart, TimerFlags.STOP_ON_MAPCHANGE);
-                }
+                // Spectator kick timer disabled for now
+                // if (_spectatorKickTimer == null)
+                // {
+                //     Server.PrintToChatAll($" {ChatColors.Red}[CompStats] WARNING: NO ACTIVE PLAYERS. SPECTATORS WILL BE KICKED IN 30 SECONDS.");
+                //     _spectatorKickTimer = AddTimer(30.0f, KickSpectatorsAndRestart, TimerFlags.STOP_ON_MAPCHANGE);
+                // }
             }
             else if (activeHumans > 0)
             {
@@ -1633,7 +1634,8 @@ collection_id=";
                     ? $"{(data.CurrentKills / (double)data.CurrentDeaths):F2}"
                     : data.CurrentKills.ToString("F2");
                 int roundsPlayed = Math.Max(_currentRound, 1);
-                string adr = $"{(data.CurrentDamage / (double)roundsPlayed):F1}";
+                int gameDamage = GetPlayerMatchDamage(p);
+                string adr = $"{(gameDamage / (double)roundsPlayed):F1}";
 
                 cmd.ReplyToCommand(
                     $"[{p.Slot}] {data.Name} | Team:{teamStr} K:{data.CurrentKills} D:{data.CurrentDeaths} A:{data.CurrentAssists} " +
@@ -1696,6 +1698,21 @@ collection_id=";
             if (player == null || !player.IsValid) return 0;
             var moneyServices = player.InGameMoneyServices;
             return moneyServices == null ? 0 : moneyServices.Account;
+        }
+
+        private int GetPlayerMatchDamage(CCSPlayerController player)
+        {
+            if (player == null || !player.IsValid) return 0;
+            try
+            {
+                var ats = player.ActionTrackingServices;
+                if (ats == null) return 0;
+                var matchStats = ats.MatchStats;
+                if (matchStats == null) return 0;
+                return matchStats.Damage;
+            }
+            catch { }
+            return 0;
         }
 
         private int GetPlayerScore(CCSPlayerController player)
