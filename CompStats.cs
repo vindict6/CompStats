@@ -986,7 +986,6 @@ collection_id=";
                 {
                     _spectatorKickTimer.Kill();
                     _spectatorKickTimer = null;
-                    Server.PrintToChatAll(" [CompStats] Active player joined. Spectator kick timer cancelled.");
                 }
                 CancelNoHumansRestartTimer();
             }
@@ -1171,10 +1170,11 @@ collection_id=";
                     if (isHeadshot) data.CurrentHeadshotKills++;
 
                     data.CurrentRoundKills++;
-                    if (_announceAces && data.CurrentRoundKills == 5)
-                    {
-                        Server.PrintToChatAll($" {ChatColors.Yellow}{data.Name} just got an Ace!");
-                    }
+                    // Ace announcement disabled
+                    // if (_announceAces && data.CurrentRoundKills == 5)
+                    // {
+                    //     Server.PrintToChatAll($" {ChatColors.Yellow}{data.Name} just got an Ace!");
+                    // }
 
                     bool victimIsBot = victim != null && victim.IsValid && victim.IsBot;
                     if (weaponName.Contains("taser", StringComparison.OrdinalIgnoreCase) && !IsWarmup() && !victimIsBot)
@@ -1184,10 +1184,11 @@ collection_id=";
                         {
                             _highestZeusKills = data.CurrentZeusKills;
 
-                            if (_announceZeusLeader)
-                            {
-                                Server.PrintToChatAll($" {ChatColors.Blue}New Zeus Leader: {data.Name}");
-                            }
+                            // Zeus leader announcement disabled
+                            // if (_announceZeusLeader)
+                            // {
+                            //     Server.PrintToChatAll($" {ChatColors.Blue}New Zeus Leader: {data.Name}");
+                            // }
                         }
                     }
 
