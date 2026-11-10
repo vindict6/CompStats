@@ -169,14 +169,14 @@ namespace CompStats
             }
         }
 
-        // Live Data Container - Optimized to be a single persistent object
+        // Stats for the current match; this object is serialized as-is when saving
         private MatchDatabase _matchData = new();
-        // Fast lookup to find player objects inside _matchData.Players
+        // SteamID lookup for the player entries in _matchData.Players
         private readonly ConcurrentDictionary<ulong, PlayerMatchData> _playerLookup = new();
 
         private int _currentRound = 1;
 
-        // Caching scores locally to check for 0-0 reset
+        // Team scores, cached so OnRoundPrestart can detect a 0-0 reset
         private int _ctWins = 0;
         private int _tWins = 0;
 
@@ -221,7 +221,7 @@ namespace CompStats
             RegisterEventHandler<EventMapShutdown>(OnMapShutdown, HookMode.Post);
             RegisterEventHandler<EventCsWinPanelMatch>(OnMatchEnd, HookMode.Post);
 
-            // Removed OnMatchRestart, relying solely on Score 0:0 check in RoundPrestart
+            // Match restarts are detected by the 0-0 score check in OnRoundPrestart, not this event
             // RegisterEventHandler<EventRoundAnnounceMatchStart>(OnMatchRestart, HookMode.Post);
 
             RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect, HookMode.Post);
@@ -243,9 +243,8 @@ namespace CompStats
             LoadWorkshopIni();
             InitializeFileWatcher();
 
-            // REMOVED: Initializing match ID on load.
-            // We now strictly wait for OnRoundPrestart to detect a 0-0 score before creating a Match ID.
-            // This prevents duplicate match creation on map load and ensures restarts on the same map are handled correctly.
+            // No match ID is created on load. OnRoundPrestart creates one when it sees a 0-0 score,
+            // which avoids duplicate matches on map load and handles restarts on the same map.
 
             AddCommand("css_players", "Print tracked player stats (humans only)", (caller, cmdInfo) =>
             {
@@ -656,18 +655,17 @@ namespace CompStats
 
         private void StartNewMatchId(string reason)
         {
-            // Reset main variables
+            // Match IDs are UTC timestamps
             string newId = DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss");
             LogMatchCreationDebug(reason, newId);
 
-            // Create a fresh MatchDatabase object.
             _matchData = new MatchDatabase();
             _matchData.MatchID = newId;
             _matchData.StartTime = DateTime.UtcNow;
 
             _highestZeusKills = 0;
 
-            // Clear lookups as the old objects are gone
+            // Drop per-player state left over from the previous match
             _playerLookup.Clear();
             _lastDeathTick.Clear();
 
@@ -864,21 +862,12 @@ collection_id=";
 
             UpdateTeamScores();
 
-            // ONLY start a new match ID if the score is 0-0 and it is NOT warmup.
-            // This covers map changes (starts at 0-0), restartgame (resets to 0-0), etc.
+            // Start a new match when the score is 0-0 outside warmup. This covers map changes
+            // (which start at 0-0) and mp_restartgame (which resets to 0-0).
             if (!isWarmup && _ctWins == 0 && _tWins == 0)
             {
-                // Logic to prevent re-triggering if we just started
-                // If total rounds recorded is > 0, we definitely need a reset.
-                // If total rounds is 0, we might have just reset. 
-                // However, "StartNewMatchId" is cheap if the data is already empty.
-                // A simple way to verify if we *just* reset is checking if the list is empty.
-                // But we want to guarantee a new ID on 0-0.
-                // To avoid looping in the same round, we rely on the fact RoundPrestart fires once per round.
-
-                // If we have data from a previous match in memory, or if this is a fresh start event.
-                // We simply check if we have any round history. If we do, this 0-0 is definitely a new match.
-                // If we don't have round history, we can still reset to be safe and ensure the timestamp is fresh.
+                // RoundPrestart fires once per round, so this can't loop within a round. Resetting when
+                // there is no round history yet is cheap and keeps the match start time accurate.
                 StartNewMatchId("Score Reset 0-0");
             }
 
@@ -887,10 +876,7 @@ collection_id=";
 
         private HookResult OnMapShutdown(EventMapShutdown @event, GameEventInfo info)
         {
-            // Optional: Save on shutdown to prevent total data loss if server crashes,
-            // even though prompt said "only... on each round end".
-            // Generally safer to keep this, but respecting the prompt's focus on logic.
-            // I will leave it out to strictly follow "Only save updates... on each round end".
+            // Match data is only saved at round end, not on map shutdown.
             return HookResult.Continue;
         }
 
@@ -1095,7 +1081,7 @@ collection_id=";
                     newData.InventoryHistory.Add("");
                 }
 
-                // CRITICAL: Add to the main list directly
+                // Also add to _matchData.Players, which is the list that gets saved
                 lock (_matchData.Players)
                 {
                     _matchData.Players.Add(newData);
@@ -1376,7 +1362,6 @@ collection_id=";
             {
                 UpdateTeamScores();
 
-                // Direct modification of _matchData properties
                 _matchData.CTWins = _ctWins;
                 _matchData.TWins = _tWins;
                 _matchData.TotalRounds = _ctWins + _tWins;
@@ -1384,7 +1369,7 @@ collection_id=";
                 _matchData.CTScoreHistory.Add(_ctWins);
                 _matchData.TScoreHistory.Add(_tWins);
 
-                // Get players ONCE and cache the list to avoid repeated entity iteration
+                // Fetch the player list once and reuse it below to avoid repeated entity iteration
                 List<CCSPlayerController> currentPlayers;
                 try
                 {
@@ -1541,7 +1526,6 @@ collection_id=";
 
                 var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
 
-                // Optimization: Directly serialize the persistent object
                 File.WriteAllText(fullFilePath, JsonSerializer.Serialize(_matchData, jsonOptions));
             }
             catch (Exception ex)
